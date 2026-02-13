@@ -36,13 +36,13 @@
 
 ### Скріншот списку експериментів
 
-![Список Runs у MLflow](mlops_lab_1/images/mlflow_experiments.png)
+![Список Runs у MLflow](images/mlflow_experiments.png)
 
 *Скріншот MLflow UI: створений експеримент creditcard-fraud та список запусків (Runs) з метриками train_auprc, val_auprc та тегом n_estimators.*
 
 ### Скріншот порівняння (Compare)
 
-![Порівняння Runs у MLflow](mlops_lab_1/images/mlflow_compare.png)
+![Порівняння Runs у MLflow](images/mlflow_compare.png)
 
 *Скріншот функції Compare: Parallel Coordinates Plot — залежність train_auprc та val_auprc від n_estimators.*
 
