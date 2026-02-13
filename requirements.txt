@@ -10,3 +10,4 @@ mlflow
 jupyter
 kagglehub
 shap
+dvc
