@@ -1,0 +1,45 @@
+schema: '2.0'
+stages:
+  prepare:
+    cmd: python -m src.prepare --input data/raw/creditcard.csv --output-dir 
+      data/prepared
+    deps:
+    - path: data/raw/creditcard.csv
+      hash: md5
+      md5: e90efcb83d69faf99fcab8b0255024de
+      size: 150828752
+    - path: src/prepare.py
+      hash: md5
+      md5: 001a89d861f23aba6cceb6a3ca3b91f5
+      size: 3986
+    outs:
+    - path: data/prepared/test.csv
+      hash: md5
+      md5: cb4433c1e68bd2b715fc28cdb6e98d08
+      size: 30546915
+    - path: data/prepared/train.csv
+      hash: md5
+      md5: 75ed5f724ab4bf702faaff2e3def629b
+      size: 122182267
+  train:
+    cmd: python -m src.train --model xgboost --n-estimators 100 --max-depth 10 
+      --learning-rate 0.1 --model-dir data/models
+    deps:
+    - path: data/prepared/test.csv
+      hash: md5
+      md5: cb4433c1e68bd2b715fc28cdb6e98d08
+      size: 30546915
+    - path: data/prepared/train.csv
+      hash: md5
+      md5: 75ed5f724ab4bf702faaff2e3def629b
+      size: 122182267
+    - path: src/train.py
+      hash: md5
+      md5: 3f5203bc9e2812d86761ccdf6e63e716
+      size: 7154
+    outs:
+    - path: data/models
+      hash: md5
+      md5: d4dfdb9da752c9880814b735342a578c.dir
+      size: 279886
+      nfiles: 1

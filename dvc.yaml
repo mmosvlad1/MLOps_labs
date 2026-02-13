@@ -1,0 +1,19 @@
+# DVC pipeline: Credit Card Fraud Detection (XGBoost)
+stages:
+  prepare:
+    cmd: python -m src.prepare --input data/raw/creditcard.csv --output-dir data/prepared
+    deps:
+      - data/raw/creditcard.csv
+      - src/prepare.py
+    outs:
+      - data/prepared/train.csv
+      - data/prepared/test.csv
+
+  train:
+    cmd: python -m src.train --model xgboost --n-estimators 100 --max-depth 10 --learning-rate 0.1 --model-dir data/models
+    deps:
+      - data/prepared/train.csv
+      - data/prepared/test.csv
+      - src/train.py
+    outs:
+      - data/models
