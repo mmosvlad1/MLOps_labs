@@ -9,3 +9,4 @@ mlruns/
 .trash/
 mlflow.db
 .vscode/
+data/prepared
