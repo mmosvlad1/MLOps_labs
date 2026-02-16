@@ -1,0 +1,3 @@
+# TPE Sampler
+hpo:
+  sampler: "tpe"

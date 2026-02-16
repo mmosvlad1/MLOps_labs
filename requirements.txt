@@ -11,3 +11,5 @@ jupyter
 kagglehub
 shap
 dvc
+hydra-core
+optuna

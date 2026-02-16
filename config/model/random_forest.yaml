@@ -1,0 +1,2 @@
+model:
+  type: "random_forest"
