@@ -10,3 +10,4 @@ mlruns/
 mlflow.db
 .vscode/
 data/prepared
+artifacts/
