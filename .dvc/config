@@ -1,4 +1,5 @@
 [core]
     remote = mylocal
+    autostage = true
 ['remote "mylocal"']
     url = ../../dvc_storage

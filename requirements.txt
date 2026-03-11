@@ -13,3 +13,4 @@ shap
 dvc
 hydra-core
 optuna
+pytest
