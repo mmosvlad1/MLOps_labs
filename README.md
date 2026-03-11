@@ -1,115 +1,108 @@
-# Лабораторна робота №3. Гіперпараметрична оптимізація та оркестрація ML-пайплайнів з Optuna
+# Лабораторна робота №4. CI/CD для ML-проєктів: автоматизація тестування та звітності з GitHub Actions та CML
 
 ## 1. Мета роботи
 
-1. Пояснити різницю між параметрами моделі та гіперпараметрами.
-2. Спроєктувати простір пошуку (search space) і обґрунтувати його межі.
-3. Реалізувати objective function для Optuna та коректно оцінювати модель на validation наборі.
-4. Організувати експеримент як відтворюваний пайплайн (конфігурація + код + артефакти).
-5. Логувати експерименти в MLflow з використанням nested runs (parent run = study, child run = trial).
-6. Інтерпретувати результати HPO і зробити висновок про компроміс якість ↔ час/ресурси.
+1. Зрозуміти принципи Continuous Integration (CI) та Continuous Delivery (CD) в контексті Machine Learning (код, дані, конфігурації, артефакти моделі).
+2. Навчитися створювати автоматизовані workflows за допомогою GitHub Actions.
+3. Опанувати інструмент CML (Continuous Machine Learning) для автоматичної генерації звітів по експериментах у Pull Request.
+4. Впровадити автоматичне тестування коду, даних та артефактів (pytest) у процес розробки.
+5. Реалізувати концепцію Quality Gate: формалізоване правило (порог/критерій), яке автоматично визначає, чи приймається модель/зміна.
 
 ## 2. Виконані завдання
 
-1. ✅ Встановлено та налаштовано Optuna у віртуальному середовищі.
-2. ✅ Реалізовано objective function у `src/optimize.py`.
-3. ✅ Описано простір пошуку гіперпараметрів для XGBoost, Random Forest та LightGBM у `config/config.yaml`.
-4. ✅ Створено Study та запущено оптимізацію (≥20 trials).
-5. ✅ Кожен trial логовано в MLflow як nested run усередині parent run.
-6. ✅ Визначено найкращі гіперпараметри, перетреновано модель та залоговано фінальну модель як артефакт.
-7. ✅ Додано Hydra-конфігурацію (YAML) для параметризації пайплайна.
+1. ✅ Репозиторій на GitHub з ML-проєктом (продовження ЛР2–ЛР3).
+2. ✅ Додано набір тестів (Unit/Smoke Tests):
+   - **Pre-train:** валідація якості/структури даних (raw і prepared), наявність колонок, діапазони значень, відсутність null, обидва класи.
+   - **Post-train:** перевірка артефактів (model.pkl, metrics.json, confusion_matrix.png), цілісність моделі (predict/predict_proba), Quality Gate за метриками (AUPRC, F1, recall ≥ порогу).
+3. ✅ Створено `.github/workflows/cml.yaml`.
+4. ✅ Workflow налаштовано для `push` та `pull_request` на гілку `main`:
+   - встановлення залежностей (pip),
+   - лінтинг (flake8, black),
+   - завантаження датасету (Kaggle),
+   - підготовка даних з підвибіркою (CI_MAX_ROWS=50000),
+   - pre-train тести,
+   - тренування (python -m src.train),
+   - post-train тести (Quality Gate),
+   - формування та публікація CML-звіту в PR.
 
 ## 3. Структура проєкту
 
 ```
-config/
-├── config.yaml         # базова конфігурація, search space
-├── model/
-│   ├── xgboost.yaml
-│   ├── random_forest.yaml
-│   └── lightgbm.yaml
-└── hpo/
-    ├── tpe.yaml
-    └── random.yaml
+.github/workflows/
+└── cml.yaml              # CI workflow (lint, train, test, CML report)
+tests/
+├── test_pre_train.py     # Валідація даних до тренування
+└── test_post_train.py    # Артефакти + Quality Gate після тренування
 src/
-├── prepare.py
-├── train.py
-└── optimize.py         # HPO + Optuna + MLflow + Hydra
+├── prepare.py            # Підготовка даних (підтримує --max-rows для CI)
+├── train.py              # Тренування + збереження артефактів у data/models/
+└── optimize.py
+data/models/              # Артефакти після тренування
+├── model.pkl
+├── metrics.json
+└── confusion_matrix.png
 ```
 
-## 4. Search Space
+## 4. Pre-train тести
 
-**XGBoost:** n_estimators, max_depth, learning_rate (log), subsample, colsample_bytree, reg_alpha, reg_lambda (log), min_child_weight.
+**Raw data (TestRawData):** наявність файлу, обов’язкові колонки (V1–V28, Time, Amount, Class), бінарний target (0/1), наявність fraud-кейсів, non-negative Amount.
 
-**Random Forest:** n_estimators, max_depth, min_samples_split, min_samples_leaf.
+**Prepared data (TestPreparedData):** наявність train/test, колонки (V1–V28, hour_of_day, Amount_scaled, Class), відсутність null, train > test за розміром, hour_of_day ∈ [0, 23], обидва класи в train, однакова схема train і test.
 
-**LightGBM:** n_estimators, max_depth, learning_rate (log), num_leaves, subsample, reg_alpha (log).
+## 5. Post-train тести
 
-Межі обґрунтовані документацією бібліотек та попередніми експериментами (Lab 1–2).
+**Артефакти (TestArtifactsExist):** model.pkl, metrics.json, confusion_matrix.png — існують і не порожні.
 
-## 5. Запуск HPO
+**Модель (TestModelIntegrity):** модель завантажується, має `predict` та `predict_proba`.
 
-```bash
-# Одна модель (XGBoost + TPE, 20 trials)
-python -m src.optimize
+**Quality Gate (TestMetricsQualityGate):** metrics.json містить test_auprc, test_f1, test_recall, test_precision; пороги: AUPRC ≥ 0.10, F1 ≥ 0.10, recall ≥ 0.10; значення в діапазоні [0, 1].
 
-# Всі три моделі по 50 trials кожна (run_name: hpo_parent_xgboost, hpo_parent_random_forest, hpo_parent_lightgbm)
-python -m src.optimize hpo.run_all_models=true
-# або
-./run_hpo_all_models.sh
+## 6. GitHub Actions workflow
 
-# XGBoost + Random sampler
-python -m src.optimize hpo=random
+**Тригери:** `push` та `pull_request` на `main`.
 
-# Random Forest + TPE
-python -m src.optimize model=random_forest
+**Кроки:**
 
-# LightGBM + 30 trials
-python -m src.optimize model=lightgbm hpo.n_trials=30
-```
+| Крок | Опис |
+|------|------|
+| checkout | Клон репозиторію |
+| Set up Python | Python 3.11, pip cache |
+| Install dependencies | `pip install -r requirements.txt` |
+| Lint (flake8) | Критичні помилки (E9, F63, F7, F82) у src/, tests/ |
+| Format check (black) | Перевірка форматування |
+| Download dataset (Kaggle) | Завантаження creditcard.csv через kagglehub (секрети KAGGLE_USERNAME, KAGGLE_KEY) |
+| Prepare data | `--max-rows 50000` для прискорення CI |
+| Pre-train tests | `pytest tests/test_pre_train.py -v` |
+| Train model | XGBoost, n_estimators=100, max_depth=10, --model-dir data/models |
+| Post-train tests | `pytest tests/test_post_train.py -v` |
+| Setup CML | iterative/setup-cml@v2 (лише для PR) |
+| Create CML report | Метрики (JSON) + confusion matrix, коментар у PR |
 
-Перед запуском: MLflow server на порту 5000 (`mlflow ui --port 5000`), підготовлені дані (`dvc repro` або `python -m src.prepare`).
+## 7. CML-звіт у Pull Request
 
-## 6. MLflow Nested Runs
+При `pull_request` workflow формує markdown-звіт:
+- **Model Metrics** — вміст metrics.json у блоці коду
+- **Confusion Matrix** — вбудоване зображення
+- Підпис: _Trained on CI subset: 50000 rows_
 
-- **Parent run** (hpo_parent) — контейнер оптимізації; логуються config, best_params, best_auprc, final модель.
-- **Child runs** (trial_000, trial_001, …) — окремі trials з params та metric auprc.
+Звіт публікується як коментар до PR командою `cml comment create report.md`.
 
-![Огляд parent runs і метрик](images/mlflow_hpo_overview.png)
+## 8. Артефакти моделі
 
-![Nested runs для XGBoost](images/mlflow_nested_runs_xgboost.png)
+Скрипт `src/train.py` при передачі `--model-dir` зберігає:
+- `model.pkl` — серіалізована модель (joblib)
+- `metrics.json` — train/test метрики (recall, precision, F1, AUPRC)
+- `confusion_matrix.png` — візуалізація матриці помилок
 
-## 7. Порівняння моделей (50 trials на модель)
-
-| Модель | Best val AUPRC | Final test AUPRC | Час |
-|--------|----------------|------------------|-----|
-| XGBoost | 0.884 | 0.819 | 35 с |
-| Random Forest | 0.877 | 0.796 | 8.2 хв |
-| LightGBM | 0.879 | 0.806 | 2.3 хв |
-
-**Найкращі гіперпараметри (best_params.json):**
-
-- **XGBoost:** n_estimators=162, max_depth=8, learning_rate≈0.042, subsample≈0.83, colsample_bytree≈0.72, reg_alpha≈1e-5, reg_lambda≈0.0005, min_child_weight=1  
-- **Random Forest:** n_estimators=204, max_depth=19, min_samples_split=4, min_samples_leaf=1  
-- **LightGBM:** n_estimators=221, max_depth=9, learning_rate≈0.0026, num_leaves=109, subsample≈0.73, reg_alpha≈8e-5  
-
-## 8. Порівняння Sampler-ів (TPE vs Random)
-
-XGBoost, n_trials=20. Результати подібні — обидва samplers знайшли однакові метрики:
-
-| Sampler | Best val AUPRC | Final test AUPRC |
-|---------|----------------|------------------|
-| TPE | 0.878 | 0.831 |
-| Random | 0.878 | 0.831 |
+Це дозволяє перевіряти артефакти в CI та формувати CML-звіт.
 
 ## 9. Відтворюваність
 
-- Seed фіксовано в конфігурації (`seed: 42`).
-- Optuna sampler отримує той самий seed.
-- Конфігурація зберігається в MLflow як артефакт `config_resolved.json`.
+- **Seed:** 42 у скриптах (random_state, stratify).
+- **Дані в CI:** датасет Kaggle (mlg-ulb/creditcardfraud), підвибірка 50000 рядків зі стратифікацією за Class.
+- **Версія коду:** Git commit hash через checkout.
+- **Конфігурація:** фіксовані параметри тренування в workflow (xgboost, n_estimators=100, max_depth=10, learning_rate=0.1).
 
 ## 10. Висновки
 
-У межах лабораторної роботи інтегровано Optuna для гіперпараметричної оптимізації та Hydra для керування конфігурацією. Реалізовано objective function з підтримкою XGBoost, Random Forest та LightGBM. Експерименти логуються в MLflow у вигляді nested runs (parent = study, child = trials), що спрощує аналіз та порівняння. Hydra дозволяє перемикати модель, sampler та інші параметри без зміни коду.
-
-**Результати:** XGBoost показав найвищий final test AUPRC (0.819) при найменшому часі (35 с). Random Forest — найповільніший (8.2 хв) і нижчий test AUPRC (0.796). LightGBM — компроміс: 0.806 AUPRC за 2.3 хв. TPE та Random sampler дали подібні результати при n_trials=20.
+У межах лабораторної роботи інтегровано CI/CD для ML-проєкту з використанням GitHub Actions та CML. Реалізовано дві групи тестів: pre-train (валідація структури та якості даних) та post-train (наявність артефактів, цілісність моделі, Quality Gate за метриками AUPRC, F1, recall). Workflow виконує лінтинг, завантаження даних з Kaggle, підготовку з підвибіркою для прискорення CI, тренування XGBoost та публікацію звіту в PR. Quality Gate забезпечує, що модель не пройде CI при падінні метрик нижче заданих порогів.
