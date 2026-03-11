@@ -94,16 +94,17 @@ class TestPreparedData:
         assert len(train_df) > len(test_df), "train.csv should be larger than test.csv"
 
     def test_hour_of_day_range(self, train_df):
-        assert train_df["hour_of_day"].between(0, 23).all(), (
-            "hour_of_day contains values outside [0, 23]"
-        )
+        assert (
+            train_df["hour_of_day"].between(0, 23).all()
+        ), "hour_of_day contains values outside [0, 23]"
 
     def test_both_classes_in_train(self, train_df):
-        assert set(train_df["Class"].unique()) == {0, 1}, (
-            "train.csv must contain both fraud (1) and non-fraud (0) samples"
-        )
+        assert set(train_df["Class"].unique()) == {
+            0,
+            1,
+        }, "train.csv must contain both fraud (1) and non-fraud (0) samples"
 
     def test_column_schema_match(self, train_df, test_df):
-        assert list(train_df.columns) == list(test_df.columns), (
-            "train.csv and test.csv have different column schemas"
-        )
+        assert list(train_df.columns) == list(
+            test_df.columns
+        ), "train.csv and test.csv have different column schemas"

@@ -1,4 +1,5 @@
 """Post-train checks: run after DVC pipeline to validate artifacts and model quality."""
+
 import json
 from pathlib import Path
 
@@ -20,6 +21,7 @@ MIN_TEST_RECALL = 0.70  # recall matters for fraud detection
 # Artifact existence
 # ---------------------------------------------------------------------------
 
+
 class TestArtifactsExist:
     def test_model_pkl_exists(self):
         assert MODEL_PKL.exists(), f"Model artifact not found: {MODEL_PKL}"
@@ -28,7 +30,9 @@ class TestArtifactsExist:
         assert METRICS_JSON.exists(), f"Metrics file not found: {METRICS_JSON}"
 
     def test_confusion_matrix_exists(self):
-        assert CONFUSION_MATRIX_PNG.exists(), f"Confusion matrix not found: {CONFUSION_MATRIX_PNG}"
+        assert (
+            CONFUSION_MATRIX_PNG.exists()
+        ), f"Confusion matrix not found: {CONFUSION_MATRIX_PNG}"
 
     def test_model_pkl_not_empty(self):
         assert MODEL_PKL.stat().st_size > 0, f"{MODEL_PKL} is empty"
@@ -37,12 +41,15 @@ class TestArtifactsExist:
         assert METRICS_JSON.stat().st_size > 0, f"{METRICS_JSON} is empty"
 
     def test_confusion_matrix_not_empty(self):
-        assert CONFUSION_MATRIX_PNG.stat().st_size > 0, f"{CONFUSION_MATRIX_PNG} is empty"
+        assert (
+            CONFUSION_MATRIX_PNG.stat().st_size > 0
+        ), f"{CONFUSION_MATRIX_PNG} is empty"
 
 
 # ---------------------------------------------------------------------------
 # Model artifact integrity
 # ---------------------------------------------------------------------------
+
 
 class TestModelIntegrity:
     @pytest.fixture(scope="class")
@@ -65,6 +72,7 @@ class TestModelIntegrity:
 # Metrics quality gates
 # ---------------------------------------------------------------------------
 
+
 class TestMetricsQualityGate:
     @pytest.fixture(scope="class")
     def metrics(self):
@@ -83,21 +91,21 @@ class TestMetricsQualityGate:
 
     def test_auprc_quality_gate(self, metrics):
         auprc = metrics["test_auprc"]
-        assert auprc >= MIN_TEST_AUPRC, (
-            f"test_auprc={auprc:.4f} is below quality gate ({MIN_TEST_AUPRC})"
-        )
+        assert (
+            auprc >= MIN_TEST_AUPRC
+        ), f"test_auprc={auprc:.4f} is below quality gate ({MIN_TEST_AUPRC})"
 
     def test_f1_quality_gate(self, metrics):
         f1 = metrics["test_f1"]
-        assert f1 >= MIN_TEST_F1, (
-            f"test_f1={f1:.4f} is below quality gate ({MIN_TEST_F1})"
-        )
+        assert (
+            f1 >= MIN_TEST_F1
+        ), f"test_f1={f1:.4f} is below quality gate ({MIN_TEST_F1})"
 
     def test_recall_quality_gate(self, metrics):
         recall = metrics["test_recall"]
-        assert recall >= MIN_TEST_RECALL, (
-            f"test_recall={recall:.4f} is below quality gate ({MIN_TEST_RECALL})"
-        )
+        assert (
+            recall >= MIN_TEST_RECALL
+        ), f"test_recall={recall:.4f} is below quality gate ({MIN_TEST_RECALL})"
 
     def test_metrics_are_valid_probabilities(self, metrics):
         for key in ("test_auprc", "test_f1", "test_recall", "test_precision"):

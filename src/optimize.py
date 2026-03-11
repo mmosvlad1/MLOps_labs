@@ -1,4 +1,5 @@
 """Lab 3: Гіперпараметрична оптимізація з Optuna, MLflow nested runs, Hydra."""
+
 import json
 import os
 import random
@@ -63,12 +64,15 @@ def load_data(cfg: DictConfig) -> tuple:
 def build_model(model_type: str, params: dict, seed: int):
     if model_type == "xgboost":
         import xgboost as xgb
+
         return xgb.XGBClassifier(random_state=seed, eval_metric="logloss", **params)
     if model_type == "random_forest":
         from sklearn.ensemble import RandomForestClassifier
+
         return RandomForestClassifier(random_state=seed, n_jobs=-1, **params)
     if model_type == "lightgbm":
         import lightgbm as lgb
+
         return lgb.LGBMClassifier(random_state=seed, verbose=-1, **params)
     raise ValueError(f"Unknown model.type='{model_type}'.")
 
@@ -77,30 +81,80 @@ def suggest_params(trial: optuna.Trial, model_type: str, cfg: DictConfig) -> dic
     space = cfg.hpo[model_type]
     if model_type == "xgboost":
         return {
-            "n_estimators": trial.suggest_int("n_estimators", space.n_estimators.low, space.n_estimators.high),
-            "max_depth": trial.suggest_int("max_depth", space.max_depth.low, space.max_depth.high),
-            "learning_rate": trial.suggest_float("learning_rate", space.learning_rate.low, space.learning_rate.high, log=True),
-            "subsample": trial.suggest_float("subsample", space.subsample.low, space.subsample.high),
-            "colsample_bytree": trial.suggest_float("colsample_bytree", space.colsample_bytree.low, space.colsample_bytree.high),
-            "reg_alpha": trial.suggest_float("reg_alpha", space.reg_alpha.low, space.reg_alpha.high, log=True),
-            "reg_lambda": trial.suggest_float("reg_lambda", space.reg_lambda.low, space.reg_lambda.high, log=True),
-            "min_child_weight": trial.suggest_int("min_child_weight", space.min_child_weight.low, space.min_child_weight.high),
+            "n_estimators": trial.suggest_int(
+                "n_estimators", space.n_estimators.low, space.n_estimators.high
+            ),
+            "max_depth": trial.suggest_int(
+                "max_depth", space.max_depth.low, space.max_depth.high
+            ),
+            "learning_rate": trial.suggest_float(
+                "learning_rate",
+                space.learning_rate.low,
+                space.learning_rate.high,
+                log=True,
+            ),
+            "subsample": trial.suggest_float(
+                "subsample", space.subsample.low, space.subsample.high
+            ),
+            "colsample_bytree": trial.suggest_float(
+                "colsample_bytree",
+                space.colsample_bytree.low,
+                space.colsample_bytree.high,
+            ),
+            "reg_alpha": trial.suggest_float(
+                "reg_alpha", space.reg_alpha.low, space.reg_alpha.high, log=True
+            ),
+            "reg_lambda": trial.suggest_float(
+                "reg_lambda", space.reg_lambda.low, space.reg_lambda.high, log=True
+            ),
+            "min_child_weight": trial.suggest_int(
+                "min_child_weight",
+                space.min_child_weight.low,
+                space.min_child_weight.high,
+            ),
         }
     if model_type == "random_forest":
         return {
-            "n_estimators": trial.suggest_int("n_estimators", space.n_estimators.low, space.n_estimators.high),
-            "max_depth": trial.suggest_int("max_depth", space.max_depth.low, space.max_depth.high),
-            "min_samples_split": trial.suggest_int("min_samples_split", space.min_samples_split.low, space.min_samples_split.high),
-            "min_samples_leaf": trial.suggest_int("min_samples_leaf", space.min_samples_leaf.low, space.min_samples_leaf.high),
+            "n_estimators": trial.suggest_int(
+                "n_estimators", space.n_estimators.low, space.n_estimators.high
+            ),
+            "max_depth": trial.suggest_int(
+                "max_depth", space.max_depth.low, space.max_depth.high
+            ),
+            "min_samples_split": trial.suggest_int(
+                "min_samples_split",
+                space.min_samples_split.low,
+                space.min_samples_split.high,
+            ),
+            "min_samples_leaf": trial.suggest_int(
+                "min_samples_leaf",
+                space.min_samples_leaf.low,
+                space.min_samples_leaf.high,
+            ),
         }
     if model_type == "lightgbm":
         return {
-            "n_estimators": trial.suggest_int("n_estimators", space.n_estimators.low, space.n_estimators.high),
-            "max_depth": trial.suggest_int("max_depth", space.max_depth.low, space.max_depth.high),
-            "learning_rate": trial.suggest_float("learning_rate", space.learning_rate.low, space.learning_rate.high, log=True),
-            "num_leaves": trial.suggest_int("num_leaves", space.num_leaves.low, space.num_leaves.high),
-            "subsample": trial.suggest_float("subsample", space.subsample.low, space.subsample.high),
-            "reg_alpha": trial.suggest_float("reg_alpha", space.reg_alpha.low, space.reg_alpha.high, log=True),
+            "n_estimators": trial.suggest_int(
+                "n_estimators", space.n_estimators.low, space.n_estimators.high
+            ),
+            "max_depth": trial.suggest_int(
+                "max_depth", space.max_depth.low, space.max_depth.high
+            ),
+            "learning_rate": trial.suggest_float(
+                "learning_rate",
+                space.learning_rate.low,
+                space.learning_rate.high,
+                log=True,
+            ),
+            "num_leaves": trial.suggest_int(
+                "num_leaves", space.num_leaves.low, space.num_leaves.high
+            ),
+            "subsample": trial.suggest_float(
+                "subsample", space.subsample.low, space.subsample.high
+            ),
+            "reg_alpha": trial.suggest_float(
+                "reg_alpha", space.reg_alpha.low, space.reg_alpha.high, log=True
+            ),
         }
     raise ValueError(f"Unknown model.type='{model_type}'.")
 
@@ -113,7 +167,9 @@ def evaluate(model, X_train, y_train, X_val, y_val, metric: str) -> float:
     raise ValueError(f"Unknown metric '{metric}'.")
 
 
-def evaluate_cv(model, X: np.ndarray, y: np.ndarray, metric: str, seed: int, n_splits: int = 5) -> float:
+def evaluate_cv(
+    model, X: np.ndarray, y: np.ndarray, metric: str, seed: int, n_splits: int = 5
+) -> float:
     cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=seed)
     scores = []
     for train_idx, val_idx in cv.split(X, y):
@@ -147,18 +203,26 @@ def objective_factory(model_type: str, cfg: DictConfig, X_train, X_val, y_train,
             if cfg.hpo.use_cv:
                 X = np.concatenate([X_train, X_val], axis=0)
                 y = np.concatenate([y_train, y_val], axis=0)
-                score = evaluate_cv(model, X, y, cfg.hpo.metric, cfg.seed, cfg.hpo.cv_folds)
+                score = evaluate_cv(
+                    model, X, y, cfg.hpo.metric, cfg.seed, cfg.hpo.cv_folds
+                )
             else:
                 score = evaluate(model, X_train, y_train, X_val, y_val, cfg.hpo.metric)
             mlflow.log_metric(cfg.hpo.metric, score)
             return score
+
     return objective
 
 
 def _run_hpo_for_model(
     model_type: str,
     cfg: DictConfig,
-    X_train, X_val, y_train, y_val, X_test, y_test,
+    X_train,
+    X_val,
+    y_train,
+    y_val,
+    X_test,
+    y_test,
     n_trials: int,
 ) -> None:
     """Запускає HPO для однієї моделі."""
@@ -198,7 +262,9 @@ def _run_hpo_for_model(
         metrics = {
             "test_auprc": final_auprc,
             "test_f1": float(f1_score(y_test, y_test_pred, zero_division=0)),
-            "test_precision": float(precision_score(y_test, y_test_pred, zero_division=0)),
+            "test_precision": float(
+                precision_score(y_test, y_test_pred, zero_division=0)
+            ),
             "test_recall": float(recall_score(y_test, y_test_pred, zero_division=0)),
             "best_val_auprc": float(best_trial.value),
             "best_params": dict(best_trial.params),
@@ -223,7 +289,9 @@ def _run_hpo_for_model(
         if cfg.mlflow.log_model:
             mlflow.sklearn.log_model(best_model, artifact_path="model")
 
-        print(f"[{model_type}] HPO complete. Best {cfg.hpo.metric}: {best_trial.value:.4f}, Final test AUPRC: {final_auprc:.4f}")
+        print(
+            f"[{model_type}] HPO complete. Best {cfg.hpo.metric}: {best_trial.value:.4f}, Final test AUPRC: {final_auprc:.4f}"
+        )
 
 
 def main(cfg: DictConfig) -> None:
@@ -240,15 +308,27 @@ def main(cfg: DictConfig) -> None:
         for model_type in models:
             print(f"\n--- {model_type.upper()} ---")
             _run_hpo_for_model(
-                model_type, cfg,
-                X_train, X_val, y_train, y_val, X_test, y_test,
+                model_type,
+                cfg,
+                X_train,
+                X_val,
+                y_train,
+                y_val,
+                X_test,
+                y_test,
                 n_trials=n_per_model,
             )
         print("\nУсі моделі завершено.")
     else:
         _run_hpo_for_model(
-            cfg.model.type, cfg,
-            X_train, X_val, y_train, y_val, X_test, y_test,
+            cfg.model.type,
+            cfg,
+            X_train,
+            X_val,
+            y_train,
+            y_val,
+            X_test,
+            y_test,
             n_trials=cfg.hpo.n_trials,
         )
 
