@@ -1,3 +1,4 @@
+import json
 import tempfile
 from pathlib import Path
 
@@ -206,7 +207,16 @@ def main(
         if model_dir is not None:
             model_dir = Path(model_dir)
             model_dir.mkdir(parents=True, exist_ok=True)
-            joblib.dump(model_obj, model_dir / "model.joblib")
+
+            joblib.dump(model_obj, model_dir / "model.pkl")
+
+            metrics = {**train_metrics, **test_metrics}
+            with open(model_dir / "metrics.json", "w") as f:
+                json.dump(metrics, f, indent=2)
+            mlflow.log_artifact(str(model_dir / "metrics.json"))
+
+            save_confusion_matrix(y_test, y_test_pred, model_dir / "confusion_matrix.png")
+            mlflow.log_artifact(str(model_dir / "confusion_matrix.png"))
 
         print("Training complete. Logged to MLflow.")
         print(f"  Model: {model}")

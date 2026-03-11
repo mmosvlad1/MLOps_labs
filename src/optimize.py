@@ -1,18 +1,27 @@
 """Lab 3: Гіперпараметрична оптимізація з Optuna, MLflow nested runs, Hydra."""
+import json
 import os
 import random
 
 import hydra
 import joblib
+import matplotlib.pyplot as plt
 import mlflow
 import mlflow.sklearn
 import numpy as np
 import optuna
 import pandas as pd
+import seaborn as sns
 from hydra.utils import to_absolute_path
 from omegaconf import DictConfig, OmegaConf
 from sklearn.base import clone
-from sklearn.metrics import average_precision_score
+from sklearn.metrics import (
+    average_precision_score,
+    confusion_matrix,
+    f1_score,
+    precision_score,
+    recall_score,
+)
 from sklearn.model_selection import StratifiedKFold, train_test_split
 
 
@@ -174,14 +183,42 @@ def _run_hpo_for_model(
 
         best_model = build_model(model_type, params=best_trial.params, seed=cfg.seed)
         best_model.fit(X_train, y_train)
+
+        y_test_pred = best_model.predict(X_test)
         y_test_proba = best_model.predict_proba(X_test)[:, 1]
         final_auprc = float(average_precision_score(y_test, y_test_proba))
         mlflow.log_metric("final_auprc", final_auprc)
 
         os.makedirs("models", exist_ok=True)
+
         model_path = f"models/best_{model_type}.pkl"
         joblib.dump(best_model, model_path)
         mlflow.log_artifact(model_path)
+
+        metrics = {
+            "test_auprc": final_auprc,
+            "test_f1": float(f1_score(y_test, y_test_pred, zero_division=0)),
+            "test_precision": float(precision_score(y_test, y_test_pred, zero_division=0)),
+            "test_recall": float(recall_score(y_test, y_test_pred, zero_division=0)),
+            "best_val_auprc": float(best_trial.value),
+            "best_params": dict(best_trial.params),
+        }
+        metrics_path = f"models/metrics_{model_type}.json"
+        with open(metrics_path, "w") as f:
+            json.dump(metrics, f, indent=2)
+        mlflow.log_artifact(metrics_path)
+
+        cm = confusion_matrix(y_test, y_test_pred)
+        fig, ax = plt.subplots(figsize=(6, 5))
+        sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", ax=ax)
+        ax.set_xlabel("Predicted")
+        ax.set_ylabel("Actual")
+        ax.set_title(f"Confusion Matrix — {model_type}")
+        plt.tight_layout()
+        cm_path = f"models/confusion_matrix_{model_type}.png"
+        plt.savefig(cm_path)
+        plt.close()
+        mlflow.log_artifact(cm_path)
 
         if cfg.mlflow.log_model:
             mlflow.sklearn.log_model(best_model, artifact_path="model")

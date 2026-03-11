@@ -16,4 +16,6 @@ stages:
       - data/prepared/test.csv
       - src/train.py
     outs:
-      - data/models
+      - data/models/model.pkl
+      - data/models/metrics.json
+      - data/models/confusion_matrix.png
