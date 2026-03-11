@@ -93,8 +93,8 @@ jobs:
           echo '```' >> report.md
           echo "" >> report.md
           echo "## Confusion Matrix" >> report.md
-          echo "![inline](./data/models/confusion_matrix.png)" >> report.md
+          echo '![](./data/models/confusion_matrix.png)' >> report.md
           echo "" >> report.md
           echo "---" >> report.md
           echo "_Trained on CI subset: ${CI_MAX_ROWS} rows_" >> report.md
-          cml comment create --publish-native report.md
+          cml comment create report.md
