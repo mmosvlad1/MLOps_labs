@@ -1,0 +1,100 @@
+name: Model CI (Train, Test, Report)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+
+    env:
+      CI_MAX_ROWS: "5000"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Lint (flake8 — errors only)
+        run: |
+          flake8 src/ tests/ \
+            --count --select=E9,F63,F7,F82 --show-source --statistics
+
+      - name: Format check (black)
+        run: |
+          black src/ tests/ --check
+
+      - name: Download dataset (Kaggle)
+        env:
+          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+        run: |
+          mkdir -p data/raw
+          python - <<'EOF'
+          import shutil
+          from pathlib import Path
+          import kagglehub
+          path = Path(kagglehub.dataset_download("mlg-ulb/creditcardfraud"))
+          src = next(path.glob("*.csv"))
+          shutil.copy(src, "data/raw/creditcard.csv")
+          print(f"Dataset copied from {src}")
+          EOF
+
+      - name: Prepare data (CI subset — ${{ env.CI_MAX_ROWS }} rows)
+        run: |
+          python -m src.prepare \
+            --input data/raw/creditcard.csv \
+            --output-dir data/prepared \
+            --max-rows $CI_MAX_ROWS
+
+      - name: Pre-train tests
+        run: pytest tests/test_pre_train.py -v
+
+      - name: Train model
+        run: |
+          python -m src.train \
+            --model xgboost \
+            --n-estimators 100 \
+            --max-depth 10 \
+            --learning-rate 0.1 \
+            --model-dir data/models
+
+      - name: Post-train tests (quality gate)
+        run: pytest tests/test_post_train.py -v
+
+      - name: Setup CML
+        if: github.event_name == 'pull_request'
+        uses: iterative/setup-cml@v2
+
+      - name: Create CML report
+        if: github.event_name == 'pull_request'
+        env:
+          REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "## Model Metrics" >> report.md
+          echo '```json' >> report.md
+          cat data/models/metrics.json >> report.md
+          echo '```' >> report.md
+          echo "" >> report.md
+          echo "## Confusion Matrix" >> report.md
+          cml publish data/models/confusion_matrix.png --md >> report.md
+          echo "" >> report.md
+          echo "---" >> report.md
+          echo "_Trained on CI subset: ${CI_MAX_ROWS} rows_" >> report.md
+          cml comment create report.md

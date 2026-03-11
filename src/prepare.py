@@ -82,11 +82,18 @@ def prepare_and_split(
 )
 @click.option("--test-size", default=0.2, help="Частка test (0.2 = 20%%)")
 @click.option("--random-state", default=42, help="Random state")
+@click.option(
+    "--max-rows",
+    default=None,
+    type=int,
+    help="Limit dataset to N rows (stratified). Use in CI to speed up training.",
+)
 def main(
     input_path: Path | None,
     output_dir: Path | None,
     test_size: float,
     random_state: int,
+    max_rows: int | None,
 ):
     input_path = input_path or DEFAULT_RAW
     output_dir = output_dir or DEFAULT_PREPARED_DIR
@@ -100,6 +107,16 @@ def main(
 
     df = load_data(input_path)
     df = clean_data(df)
+
+    if max_rows is not None and len(df) > max_rows:
+        df = df.groupby("Class", group_keys=False).apply(
+            lambda g: g.sample(
+                n=max(1, round(max_rows * len(g) / len(df))),
+                random_state=random_state,
+            )
+        )
+        print(f"CI mode: sampled {len(df)} rows (max_rows={max_rows})")
+
     train_df, test_df = prepare_and_split(
         df, test_size=test_size, random_state=random_state
     )
