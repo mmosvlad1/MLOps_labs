@@ -13,3 +13,6 @@ shap
 dvc
 hydra-core
 optuna
+pytest
+flake8
+black

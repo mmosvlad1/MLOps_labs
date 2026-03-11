@@ -33,6 +33,7 @@ def get_model(
 ):
     if name == "xgboost":
         import xgboost as xgb
+
         return xgb.XGBClassifier(
             n_estimators=n_estimators,
             max_depth=max_depth,
@@ -42,6 +43,7 @@ def get_model(
         )
     if name == "random_forest":
         from sklearn.ensemble import RandomForestClassifier
+
         return RandomForestClassifier(
             n_estimators=n_estimators,
             max_depth=max_depth,
@@ -49,6 +51,7 @@ def get_model(
         )
     if name == "lightgbm":
         import lightgbm as lgb
+
         return lgb.LGBMClassifier(
             n_estimators=n_estimators,
             max_depth=max_depth,
@@ -156,12 +159,14 @@ def main(
         mlflow.set_tag("max_depth", str(max_depth))
         mlflow.set_tag("learning_rate", str(learning_rate))
 
-        mlflow.log_params({
-            "n_estimators": n_estimators,
-            "max_depth": max_depth,
-            "learning_rate": learning_rate,
-            "model": model,
-        })
+        mlflow.log_params(
+            {
+                "n_estimators": n_estimators,
+                "max_depth": max_depth,
+                "learning_rate": learning_rate,
+                "model": model,
+            }
+        )
 
         model_obj.fit(X_train, y_train)
 
@@ -201,7 +206,9 @@ def main(
             tmp = Path(tmp)
             save_confusion_matrix(y_test, y_test_pred, tmp / "confusion_matrix.png")
             mlflow.log_artifact(str(tmp / "confusion_matrix.png"))
-            save_feature_importance(model_obj, feature_cols, tmp / "feature_importance.png")
+            save_feature_importance(
+                model_obj, feature_cols, tmp / "feature_importance.png"
+            )
             mlflow.log_artifact(str(tmp / "feature_importance.png"))
 
         if model_dir is not None:
@@ -215,7 +222,9 @@ def main(
                 json.dump(metrics, f, indent=2)
             mlflow.log_artifact(str(model_dir / "metrics.json"))
 
-            save_confusion_matrix(y_test, y_test_pred, model_dir / "confusion_matrix.png")
+            save_confusion_matrix(
+                y_test, y_test_pred, model_dir / "confusion_matrix.png"
+            )
             mlflow.log_artifact(str(model_dir / "confusion_matrix.png"))
 
         print("Training complete. Logged to MLflow.")
