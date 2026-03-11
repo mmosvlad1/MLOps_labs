@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      CI_MAX_ROWS: "5000"
+      CI_MAX_ROWS: "50000"
 
     steps:
       - uses: actions/checkout@v4
