@@ -1,0 +1,12 @@
+.git
+mlruns/
+__pycache__
+*.pyc
+.venv
+artifacts/
+*.egg-info
+data/prepared/
+data/models/
+logs/
+airflow_home/
+.dvc/cache
