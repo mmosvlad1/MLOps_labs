@@ -1,0 +1,59 @@
+name: Lab5 CI (Lint, DAG Test, Docker Build)
+
+on:
+  push:
+    branches: [lab5, main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - run: pip install flake8 black
+      - name: Lint (flake8)
+        run: flake8 src/ tests/ dags/ --count --select=E9,F63,F7,F82 --show-source --statistics
+      - name: Format check (black)
+        run: black src/ tests/ dags/ --check
+
+  dag-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install dependencies
+        run: |
+          pip install apache-airflow==2.10.4 pytest
+          pip install -r requirements.txt
+      - name: Set Airflow home
+        run: |
+          mkdir -p airflow_home
+          airflow db init
+        env:
+          AIRFLOW_HOME: ./airflow_home
+          AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: sqlite:///./airflow_home/airflow.db
+      - name: Test DAG integrity
+        run: pytest tests/test_dag.py -v
+        env:
+          AIRFLOW_HOME: ./airflow_home
+          AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: sqlite:///./airflow_home/airflow.db
+
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Docker image
+        run: docker build -t mlops-lab5 .
+      - name: Verify image
+        run: docker run --rm mlops-lab5 python -c "import sklearn; import xgboost; import mlflow; print('OK')"
