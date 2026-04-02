@@ -1,108 +1,216 @@
-# Лабораторна робота №4. CI/CD для ML-проєктів: автоматизація тестування та звітності з GitHub Actions та CML
+# Лабораторна робота №5. Оркестрація ML-пайплайнів: Від CI/CD до Continuous Training
 
 ## 1. Мета роботи
 
-1. Зрозуміти принципи Continuous Integration (CI) та Continuous Delivery (CD) в контексті Machine Learning (код, дані, конфігурації, артефакти моделі).
-2. Навчитися створювати автоматизовані workflows за допомогою GitHub Actions.
-3. Опанувати інструмент CML (Continuous Machine Learning) для автоматичної генерації звітів по експериментах у Pull Request.
-4. Впровадити автоматичне тестування коду, даних та артефактів (pytest) у процес розробки.
-5. Реалізувати концепцію Quality Gate: формалізоване правило (порог/критерій), яке автоматично визначає, чи приймається модель/зміна.
+1. Зрозуміти принципи оркестрації ML-пайплайнів за допомогою Apache Airflow.
+2. Навчитися контейнеризувати ML-застосунки за допомогою Docker (multi-stage build).
+3. Налаштувати повноцінне локальне середовище для ML-оркестрації: Airflow + MLflow + PostgreSQL.
+4. Реалізувати DAG (Directed Acyclic Graph) для автоматизованого навчання моделі з логікою розгалуження (BranchPythonOperator).
+5. Інтегрувати MLflow Model Registry для реєстрації та версіонування моделей.
 
 ## 2. Виконані завдання
 
-1. ✅ Репозиторій на GitHub з ML-проєктом (продовження ЛР2–ЛР3).
-2. ✅ Додано набір тестів (Unit/Smoke Tests):
-   - **Pre-train:** валідація якості/структури даних (raw і prepared), наявність колонок, діапазони значень, відсутність null, обидва класи.
-   - **Post-train:** перевірка артефактів (model.pkl, metrics.json, confusion_matrix.png), цілісність моделі (predict/predict_proba), Quality Gate за метриками (AUPRC, F1, recall ≥ порогу).
-3. ✅ Створено `.github/workflows/cml.yaml`.
-4. ✅ Workflow налаштовано для `push` та `pull_request` на гілку `main`:
-   - встановлення залежностей (pip),
-   - лінтинг (flake8, black),
-   - завантаження датасету (Kaggle),
-   - підготовка даних з підвибіркою (CI_MAX_ROWS=50000),
-   - pre-train тести,
-   - тренування (python -m src.train),
-   - post-train тести (Quality Gate),
-   - формування та публікація CML-звіту в PR.
+- ✅ Dockerfile (multi-stage build: builder + runtime)
+- ✅ `.dockerignore`
+- ✅ `docker-compose.yaml` (Airflow + MLflow + PostgreSQL)
+- ✅ Airflow DAG `ml_training_pipeline` (5 tasks + branching)
+- ✅ DAG integrity tests (`tests/test_dag.py`)
+- ✅ GitHub Actions CI workflow (`ci.yaml`: lint + dag-test + docker-build)
+- ✅ README (цей документ)
 
 ## 3. Структура проєкту
 
 ```
-.github/workflows/
-└── cml.yaml              # CI workflow (lint, train, test, CML report)
-tests/
-├── test_pre_train.py     # Валідація даних до тренування
-└── test_post_train.py    # Артефакти + Quality Gate після тренування
-src/
-├── prepare.py            # Підготовка даних (підтримує --max-rows для CI)
-├── train.py              # Тренування + збереження артефактів у data/models/
-└── optimize.py
-data/models/              # Артефакти після тренування
-├── model.pkl
-├── metrics.json
-└── confusion_matrix.png
+MLOps/
+├── Dockerfile                          # Multi-stage Docker build
+├── .dockerignore                       # Виключення для Docker
+├── docker-compose.yaml                 # Airflow + MLflow + Postgres
+├── dags/
+│   └── ml_training_pipeline.py         # Airflow DAG (5 tasks + branching)
+├── src/
+│   ├── prepare.py                      # Підготовка даних (Click CLI)
+│   ├── train.py                        # Навчання моделі (Click CLI)
+│   └── optimize.py                     # HPO (Optuna + Hydra)
+├── tests/
+│   ├── test_dag.py                     # DAG integrity tests (новий)
+│   ├── test_pre_train.py               # Перевірка даних
+│   └── test_post_train.py              # Quality gate тести
+├── config/                             # Hydra конфігурації
+├── data/                               # Дані (DVC-tracked)
+├── .github/workflows/
+│   ├── ci.yaml                         # Lab5 CI (lint + dag-test + docker-build)
+│   └── cml.yaml                        # Lab4 CML workflow
+└── requirements.txt
 ```
 
-## 4. Pre-train тести
+## 4. Контейнеризація (Docker)
 
-**Raw data (TestRawData):** наявність файлу, обов’язкові колонки (V1–V28, Time, Amount, Class), бінарний target (0/1), наявність fraud-кейсів, non-negative Amount.
+### Dockerfile — Multi-stage build
 
-**Prepared data (TestPreparedData):** наявність train/test, колонки (V1–V28, hour_of_day, Amount_scaled, Class), відсутність null, train > test за розміром, hour_of_day ∈ [0, 23], обидва класи в train, однакова схема train і test.
+**Stage 1 (builder):** базовий образ `python:3.11` з компіляторами.
+- Встановлює всі залежності з `requirements.txt` (включно з xgboost, lightgbm).
 
-## 5. Post-train тести
+**Stage 2 (runtime):** `python:3.11-slim` — мінімальний образ.
+- Копіює встановлені пакети зі stage 1 (`site-packages`, `bin`).
+- Копіює вихідний код: `src/`, `config/`, `dvc.yaml`, `dvc.lock`.
+- `PYTHONPATH=/app` — дозволяє запускати `python -m src.prepare`, `python -m src.train`.
 
-**Артефакти (TestArtifactsExist):** model.pkl, metrics.json, confusion_matrix.png — існують і не порожні.
+### Переваги multi-stage:
+- Builder-образ (~2 GB) залишається лише як проміжний.
+- Runtime-образ значно менший (~500 MB), без компіляторів і build-tools.
 
-**Модель (TestModelIntegrity):** модель завантажується, має `predict` та `predict_proba`.
+### .dockerignore
+Виключає: `.git`, `mlruns/`, `__pycache__`, `*.pyc`, `.venv`, `artifacts/`, `*.egg-info`, підготовлені дані.
 
-**Quality Gate (TestMetricsQualityGate):** metrics.json містить test_auprc, test_f1, test_recall, test_precision; пороги: AUPRC ≥ 0.10, F1 ≥ 0.10, recall ≥ 0.10; значення в діапазоні [0, 1].
+## 5. Оркестрація (Apache Airflow)
 
-## 6. GitHub Actions workflow
+### Сервіси docker-compose.yaml
 
-**Тригери:** `push` та `pull_request` на `main`.
+| Сервіс | Образ | Порт | Призначення |
+|--------|-------|------|-------------|
+| `postgres` | `postgres:13` | — | Metadata DB для Airflow |
+| `airflow-init` | `apache/airflow:2.10.4-python3.11` | — | One-shot ініціалізація DB + admin user |
+| `airflow-webserver` | `apache/airflow:2.10.4-python3.11` | 8080 | Web UI |
+| `airflow-scheduler` | `apache/airflow:2.10.4-python3.11` | — | Планувальник DAGs |
+| `mlflow` | `python:3.11-slim` | 5000 | Tracking server + Model Registry |
 
-**Кроки:**
+### Архітектура
+```
+┌──────────────┐    metadata    ┌──────────────┐
+│  Webserver   │◄──────────────►│  PostgreSQL  │
+│  :8080       │                └──────────────┘
+└──────────────┘
+        ▲
+        │ shared volumes
+        ▼
+┌──────────────┐    experiments ┌──────────────┐
+│  Scheduler   │───────────────►│   MLflow     │
+│  (runs DAGs) │                │   :5000      │
+└──────────────┘                └──────────────┘
+```
 
-| Крок | Опис |
-|------|------|
-| checkout | Клон репозиторію |
-| Set up Python | Python 3.11, pip cache |
-| Install dependencies | `pip install -r requirements.txt` |
-| Lint (flake8) | Критичні помилки (E9, F63, F7, F82) у src/, tests/ |
-| Format check (black) | Перевірка форматування |
-| Download dataset (Kaggle) | Завантаження creditcard.csv через kagglehub (секрети KAGGLE_USERNAME, KAGGLE_KEY) |
-| Prepare data | `--max-rows 50000` для прискорення CI |
-| Pre-train tests | `pytest tests/test_pre_train.py -v` |
-| Train model | XGBoost, n_estimators=100, max_depth=10, --model-dir data/models |
-| Post-train tests | `pytest tests/test_post_train.py -v` |
-| Setup CML | iterative/setup-cml@v2 (лише для PR) |
-| Create CML report | Метрики (JSON) + confusion matrix, коментар у PR |
+### ML-залежності в Airflow
+Встановлюються через `_PIP_ADDITIONAL_REQUIREMENTS`:
+`scikit-learn==1.5.2`, `xgboost==2.1.4`, `lightgbm==4.5.0`, `pandas`, `numpy`, `mlflow`, `kagglehub`, `joblib`, `seaborn`, `matplotlib`.
 
-## 7. CML-звіт у Pull Request
+## 6. DAG: ml_training_pipeline
 
-При `pull_request` workflow формує markdown-звіт:
-- **Model Metrics** — вміст metrics.json у блоці коду
-- **Confusion Matrix** — вбудоване зображення
-- Підпис: _Trained on CI subset: 50000 rows_
+### Діаграма
 
-Звіт публікується як коментар до PR командою `cml comment create report.md`.
+```mermaid
+graph LR
+    A[check_data] --> B[prepare_data]
+    B --> C[train_model]
+    C --> D{evaluate_and_decide}
+    D -->|AUPRC >= 0.75| E[register_model]
+    D -->|AUPRC < 0.75| F[notify_failure]
+```
 
-## 8. Артефакти моделі
+### Опис tasks
 
-Скрипт `src/train.py` при передачі `--model-dir` зберігає:
-- `model.pkl` — серіалізована модель (joblib)
-- `metrics.json` — train/test метрики (recall, precision, F1, AUPRC)
-- `confusion_matrix.png` — візуалізація матриці помилок
+| Task | Тип | Призначення |
+|------|-----|-------------|
+| `check_data` | PythonOperator | Перевірка наявності `creditcard.csv`; завантаження через kagglehub якщо відсутній; XCom push шляху до файлу |
+| `prepare_data` | BashOperator | `python -m src.prepare` — очищення, feature engineering, train/test split |
+| `train_model` | BashOperator | `python -m src.train` — навчання XGBoost, збереження `model.pkl` та `metrics.json` |
+| `evaluate_and_decide` | BranchPythonOperator | Читає `metrics.json`, перевіряє `test_auprc >= 0.75`; XCom push метрик |
+| `register_model` | PythonOperator | Реєстрація в MLflow як `creditcard-fraud-detector` (experiment: `creditcard-fraud-production`) |
+| `notify_failure` | PythonOperator | Логування попередження з фактичними метриками та порогом |
 
-Це дозволяє перевіряти артефакти в CI та формувати CML-звіт.
+### BranchPythonOperator логіка
+```python
+if test_auprc >= 0.75:
+    return 'register_model'
+else:
+    return 'notify_failure'
+```
 
-## 9. Відтворюваність
+### XCom для передачі метрик
+- `check_data` → пушить `data_path`
+- `evaluate_and_decide` → пушить повний словник `metrics`
+- `register_model` → читає `metrics` через `xcom_pull`
 
-- **Seed:** 42 у скриптах (random_state, stratify).
-- **Дані в CI:** датасет Kaggle (mlg-ulb/creditcardfraud), підвибірка 50000 рядків зі стратифікацією за Class.
-- **Версія коду:** Git commit hash через checkout.
-- **Конфігурація:** фіксовані параметри тренування в workflow (xgboost, n_estimators=100, max_depth=10, learning_rate=0.1).
+## 7. CI/CD (GitHub Actions)
 
-## 10. Висновки
+### Workflow: `.github/workflows/ci.yaml`
 
-У межах лабораторної роботи інтегровано CI/CD для ML-проєкту з використанням GitHub Actions та CML. Реалізовано дві групи тестів: pre-train (валідація структури та якості даних) та post-train (наявність артефактів, цілісність моделі, Quality Gate за метриками AUPRC, F1, recall). Workflow виконує лінтинг, завантаження даних з Kaggle, підготовку з підвибіркою для прискорення CI, тренування XGBoost та публікацію звіту в PR. Quality Gate забезпечує, що модель не пройде CI при падінні метрик нижче заданих порогів.
+**Тригери:** push/PR на `lab5` та `main`.
+
+#### Job: `lint`
+- `flake8 src/ tests/ dags/` — перевірка критичних помилок (E9, F63, F7, F82)
+- `black src/ tests/ dags/ --check` — перевірка форматування
+
+#### Job: `dag-test`
+- Встановлює `apache-airflow==2.10.4` + залежності проєкту
+- Ініціалізує SQLite Airflow DB
+- Запускає `pytest tests/test_dag.py -v` — перевірка цілісності DAG
+
+#### Job: `docker-build`
+- Будує Docker образ: `docker build -t mlops-lab5 .`
+- Перевіряє імпорти: `docker run --rm mlops-lab5 python -c "import sklearn; import xgboost; import mlflow; print('OK')"`
+
+## 8. MLflow Model Registry
+
+Модель реєструється в задачі `register_model`:
+- **Experiment:** `creditcard-fraud-production`
+- **Registered model name:** `creditcard-fraud-detector`
+- Логуються параметри навчання (model_type, n_estimators, max_depth, learning_rate)
+- Логуються всі метрики з quality gate evaluation
+- Використовується `mlflow.sklearn.log_model()` з `registered_model_name`
+
+## 9. Як запустити
+
+### Локально (Docker Compose):
+```bash
+# Запустити всі сервіси
+docker-compose up -d
+
+# Відкрити Airflow UI
+# http://localhost:8080  (login: airflow / airflow)
+
+# Відкрити MLflow UI
+# http://localhost:5000
+
+# Вручну запустити DAG через Airflow UI:
+# DAGs → ml_training_pipeline → Trigger DAG ▶
+```
+
+### Зупинка:
+```bash
+docker-compose down
+# Видалити volumes (якщо потрібно скинути стан):
+docker-compose down -v
+```
+
+### Без Docker (локальний запуск pipeline):
+```bash
+python -m src.prepare --input data/raw/creditcard.csv --output-dir data/prepared
+python -m src.train --model xgboost --n-estimators 100 --max-depth 10 \
+    --learning-rate 0.1 --model-dir data/models
+```
+
+## 10. Скріншоти
+
+### DAG Graph (Mermaid)
+```mermaid
+graph LR
+    A[check_data] --> B[prepare_data]
+    B --> C[train_model]
+    C --> D{evaluate_and_decide}
+    D -->|AUPRC >= 0.75| E[register_model]
+    D -->|AUPRC < 0.75| F[notify_failure]
+```
+
+*Після запуску `docker-compose up -d` та відкриття http://localhost:8080 → DAGs → ml_training_pipeline → Graph View можна переглянути живий граф DAG.*
+
+*MLflow Model Registry доступний за адресою http://localhost:5000 → Models → creditcard-fraud-detector після успішного запуску DAG.*
+
+## 11. Висновки
+
+У цій лабораторній роботі реалізовано повноцінну систему оркестрації ML-пайплайнів:
+
+1. **Контейнеризація** — multi-stage Dockerfile зменшує розмір runtime-образу, виключаючи компілятори та build-tools.
+2. **Оркестрація** — Apache Airflow з LocalExecutor та PostgreSQL як metadata DB забезпечує надійне виконання DAGs.
+3. **Розгалуження** — BranchPythonOperator реалізує Quality Gate: модель реєструється лише якщо `test_auprc >= 0.75`, інакше — сповіщення про помилку.
+4. **MLflow Model Registry** — централізоване версіонування моделей з автоматичною реєстрацією через Airflow.
+5. **CI/CD** — трьохступеневий pipeline (lint → dag-test → docker-build) забезпечує якість коду та інфраструктури.
