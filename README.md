@@ -72,7 +72,7 @@ MLOps/
 | `airflow-init` | `apache/airflow:2.10.4-python3.11` | — | One-shot ініціалізація DB + admin user |
 | `airflow-webserver` | `apache/airflow:2.10.4-python3.11` | 8080 | Web UI |
 | `airflow-scheduler` | `apache/airflow:2.10.4-python3.11` | — | Планувальник DAGs |
-| `mlflow` | `python:3.11-slim` | 5000 | Tracking server + Model Registry |
+| `mlflow` | `python:3.11-slim` | 5001 | Tracking server + Model Registry |
 
 ### Архітектура
 ```
@@ -169,7 +169,7 @@ docker-compose up -d
 # http://localhost:8080  (login: airflow / airflow)
 
 # Відкрити MLflow UI
-# http://localhost:5000
+# http://localhost:5001
 
 # Вручну запустити DAG через Airflow UI:
 # DAGs → ml_training_pipeline → Trigger DAG ▶
@@ -203,7 +203,7 @@ graph LR
 
 *Після запуску `docker-compose up -d` та відкриття http://localhost:8080 → DAGs → ml_training_pipeline → Graph View можна переглянути живий граф DAG.*
 
-*MLflow Model Registry доступний за адресою http://localhost:5000 → Models → creditcard-fraud-detector після успішного запуску DAG.*
+*MLflow Model Registry доступний за адресою http://localhost:5001 → Models → creditcard-fraud-detector після успішного запуску DAG.*
 
 ## 11. Висновки
 
